@@ -2,22 +2,25 @@ from bs4 import BeautifulSoup
 import select
 import json
 import sys
+import csv
 import os
 import re
+
 
 class dataset:
     def __init__(self):
         self.dataTree = None
         self.wasPiped = False
 
-        if len(sys.argv)>1:
-            self.dataTree = BeautifulSoup(open(sys.argv[1]), "html.parser")
+        if len(sys.argv) > 1:
+            if os.path.isfile(sys.argv[1]):
+                self.dataTree = BeautifulSoup(open(sys.argv[1]), "html.parser")
+            else:
+                print('Datei "{}" existiert nicht'.format(sys.argv[1]))
         else:
-
-            #self.dataTree = BeautifulSoup(input(), "html.parser")
             try:
-                # check if there is a piped file (eg cia cat)
-                if select.select([sys.stdin,],[],[],0.0)[0]:
+                # check if there is a piped file (eg via cat)
+                if select.select([sys.stdin, ], [], [], 0.0)[0]:
                     self.wasPiped = True
                     allLines = ''
                     for line in sys.stdin:
@@ -28,9 +31,9 @@ class dataset:
                 # if there is no stdin (windows?)
                 pass
 
-            if self.dataTree is None:
-                print('enter filename as parameter OR pipe a file')
-                sys.exit()
+        if self.dataTree is None:
+            print('enter filename as parameter OR pipe a file')
+            sys.exit()
 
         self.header = dict()
         self.data = dict()
@@ -41,12 +44,12 @@ class dataset:
         """Saves metadata and appends the current ID to design list
         """
         metadata = dict()
-        for idx,row in enumerate(table.tbody.find_all('tr')):
+        for idx, row in enumerate(table.tbody.find_all('tr')):
             cell_id = row.find_all('td')[0].text.strip()
             cell_id = cell_id.strip(":")
             cell_res = row.find_all('td')[1].text.strip()
-            cell_res = cell_res.replace("\n","")
-            cell_res = cell_res.replace("\t"," ")
+            cell_res = cell_res.replace("\n", "")
+            cell_res = cell_res.replace("\t", " ")
             metadata[cell_id] = cell_res
         self.header[metadata["Lokalisation"]] = metadata
         self.design.append(metadata["Lokalisation"])
@@ -93,27 +96,29 @@ class dataset:
         """Exports as tab-delimited text file"""
 
         headers = [
-        "Diagnose",
-        "Jahr",
-        "Altersgruppe",
-        "Inzidenz_männlich",
-        "Inzidenz_weiblich",
-        "Inzidenz_beide",
-        "Mortalität_männlich",
-        "Mortalität_weiblich",
-        "Mortalität_beide"
+            "Diagnose",
+            "Jahr",
+            "Altersgruppe",
+            "Inzidenz_männlich",
+            "Inzidenz_weiblich",
+            "Inzidenz_beide",
+            "Mortalität_männlich",
+            "Mortalität_weiblich",
+            "Mortalität_beide"
         ]
-        f = open("{}data.txt".format(filename), "w")
+
+        f = open("{}data.txt".format(filename), "w", newline='')
         # write metadata
-        f.write("\t".join(headers))
-        f.write("\n")
-        for id,data_by_icd in self.data.items():
-            for year,data_by_year in data_by_icd.items():
-                for agegroup,valuelist in data_by_year.items():
-                    outstring = "{}\t{}\t{}\t".format(id, year, agegroup)
-                    outstring += "\t".join(str(i) for i in valuelist)
-                    f.write(outstring)
-                    f.write("\n")
+
+        a = csv.writer(f, delimiter="\t")
+        a.writerow(headers)
+
+        for id, data_by_icd in self.data.items():
+            for year, data_by_year in data_by_icd.items():
+                for agegroup, valuelist in data_by_year.items():
+                    myList = [id, year, agegroup] + valuelist
+                    a.writerow(myList)
+
         f.close()
         pass
 
@@ -124,6 +129,7 @@ class dataset:
             elif table["id"] == "datatab":
                 self.processData(table)
             else:
+                # TODO: stderr is not defined
                 print(stderr,"table-tag gefunden, das weder Header noch Daten enthält. Übersprungen.")
         pass
 
