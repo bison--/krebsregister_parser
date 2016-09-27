@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+import select
 import json
 import sys
 import os
@@ -7,10 +8,30 @@ import re
 class dataset:
     def __init__(self):
         self.dataTree = None
+        self.wasPiped = False
+
         if len(sys.argv)>1:
             self.dataTree = BeautifulSoup(open(sys.argv[1]), "html.parser")
         else:
-            self.dataTree = BeautifulSoup(input('enter file name:'), "html.parser")
+
+            #self.dataTree = BeautifulSoup(input(), "html.parser")
+            try:
+                # check if there is a piped file (eg cia cat)
+                if select.select([sys.stdin,],[],[],0.0)[0]:
+                    self.wasPiped = True
+                    allLines = ''
+                    for line in sys.stdin:
+                        allLines += line
+                    self.dataTree = BeautifulSoup(allLines, "html.parser")
+
+            except Exception as ex:
+                # if there is no stdin (windows?)
+                pass
+
+            if self.dataTree is None:
+                print('enter filename as parameter OR pipe a file')
+                sys.exit()
+
         self.header = dict()
         self.data = dict()
         self.design = list()
@@ -110,10 +131,13 @@ class dataset:
 if __name__ == '__main__':
     d = dataset()
     d.parse()
-    filename = input("Ausgabe Filename (auto suffix: data.json, design.json, meta.json, data.txt):")
+    filename = ''
+    if not d.wasPiped:
+        filename = input("Ausgabe Filename (auto suffix: data.json, design.json, meta.json, data.txt):")
+
     if os.path.isfile(filename+"data.json"):
-        if input("File existiert, überschreiben (N zum abbrechen)?") == "N":
-            print("abgebrochen")
+        if d.wasPiped or input("File existiert, überschreiben (N zum abbrechen)?") == "N":
+            print("File existiert, abgebrochen")
             sys.exit()
 
     d.export_json(filename)
